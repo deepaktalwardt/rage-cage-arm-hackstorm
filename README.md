@@ -9,6 +9,51 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
+## ROS 2 ArUco Detection
+
+Run the direct ROS 2 subscriber from a ROS-sourced shell or container:
+
+```bash
+python3 scripts/aruco_ros2_node.py \
+  --ros-args \
+  -p image_topic:=/camera/d435i/color/image_raw \
+  -p camera_info_topic:=/camera/d435i/color/camera_info \
+  -p detections_topic:=/aruco/detections \
+  -p annotated_topic:=/aruco/annotated_image \
+  -p pose_topic:=/aruco/pose \
+  -p marker_length_m:=0.04
+```
+
+The detections topic publishes JSON in `std_msgs/String` with marker IDs and
+pixel corners. When `marker_length_m` is greater than zero and camera intrinsics
+arrive on `camera_info_topic`, each JSON marker includes a `pose_stamped` object
+with the same `header` and `pose` shape as `geometry_msgs/PoseStamped`.
+
+The node also publishes:
+
+```text
+/aruco/annotated_image  sensor_msgs/Image
+/aruco/pose             geometry_msgs/PoseStamped
+```
+
+In Foxglove, add an Image panel for `/aruco/annotated_image` to see marker
+outlines, and add a 3D panel display for `/aruco/pose` to inspect the selected
+marker pose. In the 3D panel, set the fixed frame to the pose message frame,
+usually `d435i_color_optical_frame`, then add `/aruco/pose` as a Pose display.
+
+Useful parameters:
+
+```text
+dictionary:=DICT_4X4_50
+marker_length_m:=0.04
+axis_length_m:=0.0
+target_marker_id:=-1
+process_every_n:=3
+publish_annotated:=true
+```
+
+`axis_length_m:=0.0` uses half of `marker_length_m` for the drawn axes.
+
 Or use `uv`:
 
 ```bash
