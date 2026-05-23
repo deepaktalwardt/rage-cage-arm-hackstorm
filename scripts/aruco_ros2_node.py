@@ -46,6 +46,7 @@ class ArucoDetectorNode(Node):
         self.declare_parameter("dictionary", "DICT_4X4_50")
         self.declare_parameter("marker_length_m", 0.0)
         self.declare_parameter("target_marker_id", -1)
+        self.declare_parameter("reference_marker_id", -1)
         self.declare_parameter("axis_length_m", 0.0)
         self.declare_parameter("process_every_n", 3)
         self.declare_parameter("publish_annotated", True)
@@ -58,6 +59,7 @@ class ArucoDetectorNode(Node):
         dictionary_name = self.get_parameter("dictionary").value
         self.marker_length_m = float(self.get_parameter("marker_length_m").value)
         self.target_marker_id = int(self.get_parameter("target_marker_id").value)
+        self.reference_marker_id = int(self.get_parameter("reference_marker_id").value)
         self.axis_length_m = float(self.get_parameter("axis_length_m").value)
         self.process_every_n = max(1, int(self.get_parameter("process_every_n").value))
         self.publish_annotated = bool(self.get_parameter("publish_annotated").value)
@@ -113,7 +115,9 @@ class ArucoDetectorNode(Node):
             target_pose = self._target_pose(ids, poses)
             self.detections_pub.publish(String(data=json.dumps(detection_payload(msg, corners, ids, poses))))
             if target_pose is not None:
-                self.pose_pub.publish(pose_stamped_msg(msg, target_pose.pose))
+                public_pose = self._public_pose(msg, target_pose, poses)
+                if public_pose is not None:
+                    self.pose_pub.publish(public_pose)
             if self.annotated_pub is not None:
                 self.annotated_pub.publish(
                     annotated_image_msg(
@@ -162,6 +166,30 @@ class ArucoDetectorNode(Node):
             if self.target_marker_id < 0 or pose.marker_id == self.target_marker_id:
                 return pose
         return None
+
+    def _public_pose(
+        self,
+        msg: Image,
+        target_pose: MarkerPose,
+        poses: list[MarkerPose] | None,
+    ) -> PoseStamped | None:
+        if self.reference_marker_id < 0:
+            return pose_stamped_msg(msg, target_pose.pose)
+        if poses is None:
+            return None
+
+        reference_pose = next((pose for pose in poses if pose.marker_id == self.reference_marker_id), None)
+        if reference_pose is None:
+            return None
+
+        camera_from_reference = transform_from_rvec_tvec(reference_pose.rvec, reference_pose.tvec)
+        camera_from_target = transform_from_rvec_tvec(target_pose.rvec, target_pose.tvec)
+        reference_from_target = np.linalg.inv(camera_from_reference) @ camera_from_target
+
+        stamped = pose_from_transform(reference_from_target)
+        stamped.header.stamp = msg.header.stamp
+        stamped.header.frame_id = f"aruco_id{self.reference_marker_id}"
+        return stamped
 
 
 def image_to_bgr(msg: Image) -> np.ndarray:
@@ -217,6 +245,11 @@ def detection_payload(
                 "id": marker_id,
                 "corners_px": corners_px,
                 "pose_stamped": pose_stamped_payload(msg, marker_pose.pose) if marker_pose is not None else None,
+                "rvec": marker_pose.rvec.reshape(3).tolist() if marker_pose is not None else None,
+                "tvec_m": marker_pose.tvec.reshape(3).tolist() if marker_pose is not None else None,
+                "transform_4x4": transform_from_rvec_tvec(marker_pose.rvec, marker_pose.tvec).tolist()
+                if marker_pose is not None
+                else None,
             }
             for marker_id, corners_px, marker_pose in zip(marker_ids, marker_corners, marker_poses)
         ],
@@ -261,9 +294,14 @@ def annotated_image_msg(
 
 
 def pose_from_rvec_tvec(rvec: np.ndarray, tvec: np.ndarray) -> PoseStamped:
-    rotation, _ = cv2.Rodrigues(np.asarray(rvec, dtype=np.float64).reshape(3))
+    transform = transform_from_rvec_tvec(rvec, tvec)
+    return pose_from_transform(transform)
+
+
+def pose_from_transform(transform: np.ndarray) -> PoseStamped:
+    rotation = transform[:3, :3]
     quaternion = quaternion_from_rotation(rotation)
-    translation = np.asarray(tvec, dtype=np.float64).reshape(3)
+    translation = transform[:3, 3]
 
     pose = PoseStamped()
     pose.pose.position.x = float(translation[0])
@@ -274,6 +312,14 @@ def pose_from_rvec_tvec(rvec: np.ndarray, tvec: np.ndarray) -> PoseStamped:
     pose.pose.orientation.z = quaternion[2]
     pose.pose.orientation.w = quaternion[3]
     return pose
+
+
+def transform_from_rvec_tvec(rvec: np.ndarray, tvec: np.ndarray) -> np.ndarray:
+    rotation, _ = cv2.Rodrigues(np.asarray(rvec, dtype=np.float64).reshape(3))
+    transform = np.eye(4, dtype=np.float64)
+    transform[:3, :3] = rotation
+    transform[:3, 3] = np.asarray(tvec, dtype=np.float64).reshape(3)
+    return transform
 
 
 def pose_stamped_msg(source: Image, pose: PoseStamped) -> PoseStamped:
