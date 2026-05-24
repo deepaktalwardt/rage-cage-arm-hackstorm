@@ -1,0 +1,44 @@
+# Compose overlay for the rage_cage_thrower node.
+#
+# Prerequisites:
+#   - The shared `piper:jazzy` base image must exist. Build it once via
+#     the harness:
+#         cd docker-harness-for-node && docker compose build
+#
+# Usage:
+#   docker compose -f real/docker/compose.yaml up -d --build
+#
+# Dev iteration (node runs `sleep infinity` so you can iterate on code):
+#   docker exec -it rage_cage_thrower bash
+#   source /opt/ros/jazzy/setup.bash
+#   python3 /ws/real/rage_cage_thrower.py
+#   # in another shell:
+#   ros2 service call /throw_trigger std_srvs/srv/Trigger
+#
+# Once the node is stable, replace `command: sleep infinity` below with
+# the bash -lc auto-launch form so it starts with `docker compose up`.
+
+services:
+  rage_cage_thrower:
+    build:
+      # Build context is the repo root so the Dockerfile's COPY can reach
+      # `real/docker/requirements.txt`. Compose path is two levels up.
+      context: ../..
+      dockerfile: real/docker/Dockerfile
+    image: rage_cage_thrower:jazzy
+    container_name: rage_cage_thrower
+    network_mode: host                        # share DDS discovery with piper_ros
+    runtime: nvidia                           # harmless if unused; consistent with siblings
+    environment:
+      # Default to 12 to match the harness; override via `--env-file
+      # docker-harness-for-node/.env` or `export ROS_DOMAIN_ID=…` on the host.
+      # Empty substitution silently injects `""` and breaks `int(ROS_DOMAIN_ID)`
+      # in the ros2 CLI, so the `:-12` default is load-bearing.
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-12}
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp  # MUST match piper_ros
+    volumes:
+      - ../../real:/ws/real                   # node code (bind-mount, live-editable)
+      - ../../models:/ws/models               # trained policy + vecnormalize stats
+      - ../../throw_logs:/ws/throw_logs       # per-throw CSV logs (created on first throw)
+      - ../../recordings:/ws/recordings       # sim trajectory CSVs (read-only inputs to /replay_trajectory)
+    command: sleep infinity
