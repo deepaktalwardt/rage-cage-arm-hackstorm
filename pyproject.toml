@@ -1,14 +1,16 @@
 [project]
-name = "rage-cage-arm-hackstorm"
+name = "rage_cage_perception"
 version = "0.1.0"
-description = "Rage Cage robotic arm utilities"
+description = "Ping-pong ball 3D perception from ball 2D detection and table ArUco pose."
 readme = "README.md"
-requires-python = ">=3.10"
 dependencies = [
   "numpy>=1.24",
   "opencv-contrib-python>=4.8",
   "websocket-client>=1.7",
 ]
+
+[project.scripts]
+perception_node = "scripts.perception_node:main"
 
 [tool.uv]
 package = false
