@@ -1,0 +1,7 @@
+stable-baselines3>=2.0
+torch>=2.0
+gymnasium>=0.29
+# numpy 2.x is required: vecnormalize.pkl was pickled on Mac with numpy 2.4.5,
+# which encodes references to `numpy._core` (private path that doesn't exist
+# in numpy 1.x — unpickle fails with `ModuleNotFoundError: numpy._core.numeric`).
+numpy>=2.0
