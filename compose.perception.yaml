@@ -1,0 +1,19 @@
+services:
+  rage_cage_perception:
+    image: piper:jazzy
+    container_name: rage_cage_perception
+    network_mode: host
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-12}
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+    volumes:
+      - .:/overlay_ws/src/rage_cage_perception:ro
+    command:
+      - bash
+      - -lc
+      - >
+        source /opt/ros/jazzy/setup.bash &&
+        cd /overlay_ws &&
+        colcon build --symlink-install --packages-select rage_cage_perception &&
+        source /overlay_ws/install/setup.bash &&
+        ros2 launch rage_cage_perception perception.launch.py

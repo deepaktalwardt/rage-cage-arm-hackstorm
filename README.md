@@ -125,3 +125,81 @@ When `--reference-id` is provided, the same fitted table plane is also printed
 in that marker's coordinate frame as `table_plane_in_idN`. Each marker line also
 prints the marker's pose normal in the camera frame and its angle from the fitted
 table normal.
+
+## Ping-Pong 3D Perception
+
+This branch contains one ROS 2 node, `perception_node`, that consumes the camera
+color image and camera calibration once, then:
+
+- detects the ping-pong ball in 2D with `model/yolo11n.onnx`
+- detects the table ArUco marker with `table_marker_id:=4`
+- computes the camera-frame ray through the ball centroid
+- intersects that ray with a plane `ball_radius_m` above the ArUco marker plane
+- publishes marker and ball poses in camera frame and marker-4 frame
+
+Published topics:
+
+```text
+/perception/debug/ball_detection                 vision_msgs/Detection2DArray
+/perception/debug/ball_pose                      geometry_msgs/PoseStamped
+/perception/debug/marker_4_pose                  geometry_msgs/PoseStamped
+/perception/debug/marker_3_pose                  geometry_msgs/PoseStamped
+/perception/debug/annotated_image                sensor_msgs/Image
+/perception/debug/ball_marker                    visualization_msgs/Marker
+/perception/debug/ball_ray                       visualization_msgs/Marker
+/perception/debug/aruco_detections              std_msgs/String
+/perception/output/ball_pose_marker_4_frame      geometry_msgs/PoseStamped
+/perception/output/cup_pose                      geometry_msgs/PoseStamped
+```
+
+Run it as a mounted overlay on the existing Piper image without editing the Piper
+repo:
+
+```bash
+cd /home/orin/hackathon/xinyi/rage-cage-arm-hackstorm
+ROS_DOMAIN_ID=12 docker compose -f compose.perception.yaml up
+```
+
+Useful parameters:
+
+```text
+image_topic:=/camera/d435i/color/image_raw
+camera_info_topic:=/camera/d435i/color/camera_info
+table_marker_id:=4
+marker_length_m:=0.04
+ball_radius_m:=0.025
+cup_offset_marker_3_x_m:=0.0
+cup_offset_marker_3_y_m:=0.029
+cup_offset_marker_3_z_m:=-0.0555
+robot_arm_base_frame:=base_link
+marker_4_in_robot_base_x_m:=0.0
+marker_4_in_robot_base_y_m:=0.0
+marker_4_in_robot_base_z_m:=0.0
+marker_4_in_robot_base_qx:=0.0
+marker_4_in_robot_base_qy:=0.0
+marker_4_in_robot_base_qz:=0.0
+marker_4_in_robot_base_qw:=1.0
+process_every_n:=3
+```
+
+In Foxglove, set the 3D panel fixed frame to `d435i_color_optical_frame`, then
+add `/perception/debug/ball_marker` and `/perception/debug/ball_ray` as Marker
+topics. To show the annotated camera image inside the 3D panel, add
+`/perception/debug/annotated_image` as an Image/Camera layer and pair it with
+`/camera/d435i/color/camera_info`. `/perception/debug/ball_pose` is also
+available as a PoseStamped topic in the camera frame, and
+`/perception/output/ball_pose_marker_4_frame` publishes the same ball point in
+`aruco_marker_4` coordinates. With the default `ball_radius_m:=0.025`, the
+marker-frame `z` value should be near `+0.025 m` because the pose is the ball
+center, not the contact point on the table.
+
+`/perception/output/cup_pose` publishes the center of the cup opening in the
+robot arm base frame, default `base_link`. It is computed from marker 3 by
+applying the marker-3-frame offset
+`[cup_offset_marker_3_x_m, cup_offset_marker_3_y_m, cup_offset_marker_3_z_m]`.
+The defaults assume the opening center is 29 mm in marker-3 +Y and 55.5 mm in
+marker-3 -Z from marker 3's origin. The resulting marker-4-frame point is then
+transformed by the hard-coded marker 4 pose in robot base,
+`marker_4_in_robot_base_*`. Those parameters default to identity, so the current
+numeric cup position is unchanged from marker 4 coordinates while the message
+frame is `base_link`.

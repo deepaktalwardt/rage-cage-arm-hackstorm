@@ -1,0 +1,172 @@
+{
+  "configById": {
+    "3D!perception-scene": {
+      "cameraState": {
+        "distance": 2.0,
+        "perspective": true,
+        "phi": 0.75,
+        "target": [
+          0.0,
+          0.0,
+          0.8
+        ],
+        "thetaOffset": 0.65
+      },
+      "checkedKeys": [
+        "name:Topics",
+        "t:/tf",
+        "t:/tf_static",
+        "t:/camera/d435i/color/image_raw",
+        "t:/camera/d435i/color/camera_info",
+        "t:/perception/debug/ball_marker",
+        "t:/perception/debug/ball_ray",
+        "t:/perception/debug/ball_pose",
+        "t:/perception/debug/marker_4_pose",
+        "t:/perception/debug/marker_3_pose"
+      ],
+      "expandedKeys": [
+        "name:Topics"
+      ],
+      "followTf": "d435i_color_optical_frame",
+      "modifiedNamespaceTopics": [],
+      "pinTopics": true,
+      "scene": {
+        "backgroundColor": "#101317",
+        "enableStats": false,
+        "labelScaleFactor": 1,
+        "transforms": {
+          "axisScale": 0.15,
+          "labelSize": 0.08
+        }
+      },
+      "transforms": {
+        "frame:d435i_color_optical_frame": {
+          "visible": true
+        },
+        "frame:aruco_marker_4": {
+          "visible": true
+        },
+        "frame:aruco_marker_3": {
+          "visible": true
+        }
+      }
+    },
+    "Image!annotated": {
+      "cameraTopic": "/perception/debug/annotated_image",
+      "enabledMarkerTopics": [],
+      "mode": "fit",
+      "synchronize": false,
+      "transformMarkers": false
+    },
+    "Image!raw-color": {
+      "cameraTopic": "/camera/d435i/color/image_raw",
+      "enabledMarkerTopics": [],
+      "mode": "fit",
+      "synchronize": false,
+      "transformMarkers": false
+    },
+    "RawMessages!ball-marker4": {
+      "diffEnabled": false,
+      "diffMethod": "custom",
+      "showFullMessageForDiff": false,
+      "topicPath": "/perception/output/ball_pose_marker_4_frame"
+    },
+    "RawMessages!marker3-marker4": {
+      "diffEnabled": false,
+      "diffMethod": "custom",
+      "showFullMessageForDiff": false,
+      "topicPath": "/perception/output/cup_pose"
+    },
+    "RawMessages!ball-detection": {
+      "diffEnabled": false,
+      "diffMethod": "custom",
+      "showFullMessageForDiff": false,
+      "topicPath": "/perception/debug/ball_detection"
+    },
+    "RawMessages!aruco-debug": {
+      "diffEnabled": false,
+      "diffMethod": "custom",
+      "showFullMessageForDiff": false,
+      "topicPath": "/perception/debug/aruco_detections"
+    },
+    "Plot!perception-output": {
+      "legendDisplay": "floating",
+      "paths": [
+        {
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "value": "/perception/output/ball_pose_marker_4_frame.pose.position.x"
+        },
+        {
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "value": "/perception/output/ball_pose_marker_4_frame.pose.position.y"
+        },
+        {
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "value": "/perception/output/ball_pose_marker_4_frame.pose.position.z"
+        },
+        {
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "value": "/perception/output/cup_pose.pose.position.x"
+        },
+        {
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "value": "/perception/output/cup_pose.pose.position.y"
+        },
+        {
+          "enabled": true,
+          "timestampMethod": "receiveTime",
+          "value": "/perception/output/cup_pose.pose.position.z"
+        }
+      ],
+      "showLegend": true,
+      "showXAxisLabels": true,
+      "showYAxisLabels": true
+    }
+  },
+  "globalVariables": {},
+  "layout": {
+    "direction": "row",
+    "first": {
+      "direction": "column",
+      "first": "3D!perception-scene",
+      "second": {
+        "direction": "row",
+        "first": "Image!annotated",
+        "second": "Image!raw-color",
+        "splitPercentage": 50
+      },
+      "splitPercentage": 62
+    },
+    "second": {
+      "direction": "column",
+      "first": "Plot!perception-output",
+      "second": {
+        "direction": "column",
+        "first": {
+          "direction": "row",
+          "first": "RawMessages!ball-marker4",
+          "second": "RawMessages!marker3-marker4",
+          "splitPercentage": 50
+        },
+        "second": {
+          "direction": "row",
+          "first": "RawMessages!ball-detection",
+          "second": "RawMessages!aruco-debug",
+          "splitPercentage": 50
+        },
+        "splitPercentage": 50
+      },
+      "splitPercentage": 45
+    },
+    "splitPercentage": 65
+  },
+  "playbackConfig": {
+    "speed": 1
+  },
+  "userNodes": {}
+}
