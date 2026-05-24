@@ -1,6 +1,21 @@
 # rage-cage-arm-hackstorm
 Rage Cage playing robotic arm
 
+## RL Training
+
+### Reward Tuning
+
+![cup_0.750](images/cup_0.750_m0.100_z0.000.gif)
+
+![train_rollout_v1](images/train_rollout_006258688.gif)
+
+### RL Convergence
+
+![cup_0.85](images/cup_0.850_p0.000_z0.000.gif)
+![cup_0.85](images/cup_0.850_p0.000_z0.150.gif)
+![cup_0.85](images/cup_0.950_m0.100_z0.150.gif)
+
+
 ## ArUco Table Plane Detection
 
 Install dependencies:
