@@ -1,0 +1,16 @@
+{
+  "action_delta": 0.06,
+  "action_filter_alpha": 0.5,
+  "action_history_len": 4,
+  "action_latency_range": [
+    2,
+    4
+  ],
+  "curriculum": "auto",
+  "curriculum_log": "sim/_rl_out/latency_robust_v1_25m/curriculum.csv",
+  "final_reward_stage": 3,
+  "initial_reward_stage": 1,
+  "joint_pos_history_len": 4,
+  "obs_joint_pos_noise_std": 0.001,
+  "timesteps": 25001984
+}

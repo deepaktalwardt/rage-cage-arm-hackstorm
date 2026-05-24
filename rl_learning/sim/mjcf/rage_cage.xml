@@ -1,0 +1,147 @@
+<mujoco model="rage_cage">
+  <include file="agilex_piper/piper.xml"/>
+
+  <!-- meshdir points at piper's assets so the dozens of piper mesh files resolve;
+       our cup mesh uses an explicit ../../ escape to reach sim/mjcf/cups/ -->
+  <compiler meshdir="agilex_piper/assets"/>
+
+  <statistic center="0.55 0 0.15" extent="1.4"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="120" elevation="-20"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge"
+             rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8"
+             width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+    <material name="table_mat" rgba="0.55 0.40 0.25 1"/>
+    <material name="cup_mat" rgba="0.85 0.15 0.15 1"/>
+    <material name="ball_mat" rgba="1.00 0.65 0.10 1"/>
+    <material name="water_mat" rgba="0.30 0.55 0.85 0.55"/>
+
+    <mesh name="cup_mesh" file="../../cups/cup.stl"/>
+  </asset>
+
+  <default>
+    <default class="cup_visual">
+      <geom group="2" type="mesh" contype="0" conaffinity="0" density="0"/>
+    </default>
+    <default class="cup_coll">
+      <geom group="3" rgba="0.2 0.9 0.2 0.25" friction="0.5 0.01 0.001"/>
+    </default>
+  </default>
+
+  <worldbody>
+    <light pos="0.4 0 1.5" dir="0 0 -1" directional="true"/>
+    <geom name="floor" type="plane" size="0 0 0.05" pos="0 0 -0.5" material="groundplane"/>
+
+    <!-- Table: 150cm x 60cm; top surface at z=0. Modeled as a 100mm-thick box
+         rather than a thin plate or plane. A plane is an infinite half-space so
+         balls would "bounce off air" past the visible edge; a thin (2cm) box
+         can be tunneled through at high impact velocity because the 30mm
+         penetration we get with the current ball solref pushes through the
+         bottom face. The 100mm thickness puts the bottom at z=-0.10, well
+         below any realistic compression depth. -->
+    <geom name="table" type="box" size="0.75 0.30 0.05" pos="0.55 0 -0.05" material="table_mat"
+          friction="0.8 0.02 0.001"/>
+
+    <!-- Cup: free-jointed rigid body, nominal pose ~85cm in front of the arm base -->
+    <body name="cup" pos="0.85 0 0">
+      <freejoint name="cup_free"/>
+      <inertial pos="0 0 0.05" mass="0.020" diaginertia="3.5e-5 3.5e-5 1.5e-5"/>
+      <geom class="cup_visual" mesh="cup_mesh" material="cup_mat"/>
+      <!-- Bottom disk -->
+      <geom class="cup_coll" type="cylinder" size="0.030 0.0015" pos="0 0 0.0015"/>
+      <!-- 8 wall segments: each box 29mm wide tangentially, 3mm thick radially,
+           120mm tall; centered at average cup radius R=0.0385m. 3mm walls
+           (was 5mm) reduce the "rim deflection zone" — the band where a ball
+           descending toward the cup hits the wall's top face and bounces away
+           instead of falling in. With 5mm walls the deflection zone was 5mm
+           wide; at 3mm it's 3mm wide. Real Solo cups are ~1mm; we keep some
+           margin for sim stability against high-impact penetration. -->
+      <geom class="cup_coll" type="box" size="0.0145 0.0015 0.060" pos="0.0385 0 0.060"      euler="0 0 0"/>
+      <geom class="cup_coll" type="box" size="0.0145 0.0015 0.060" pos="0.02722 0.02722 0.060"  euler="0 0 45"/>
+      <geom class="cup_coll" type="box" size="0.0145 0.0015 0.060" pos="0 0.0385 0.060"      euler="0 0 90"/>
+      <geom class="cup_coll" type="box" size="0.0145 0.0015 0.060" pos="-0.02722 0.02722 0.060" euler="0 0 135"/>
+      <geom class="cup_coll" type="box" size="0.0145 0.0015 0.060" pos="-0.0385 0 0.060"     euler="0 0 180"/>
+      <geom class="cup_coll" type="box" size="0.0145 0.0015 0.060" pos="-0.02722 -0.02722 0.060" euler="0 0 225"/>
+      <geom class="cup_coll" type="box" size="0.0145 0.0015 0.060" pos="0 -0.0385 0.060"     euler="0 0 270"/>
+      <geom class="cup_coll" type="box" size="0.0145 0.0015 0.060" pos="0.02722 -0.02722 0.060"  euler="0 0 315"/>
+      <!-- Water column ≈ 25% full. A solid cylinder, not a fluid sim. When the
+           ball makes contact, env applies COR_WATER=0 in the substep loop,
+           killing the rebound velocity along the contact normal. The ball gets
+           trapped on the water surface and slides to rest under friction.
+           Touching water is treated as a success (see env's _ball_touched_water
+           flag). Geometry: bottom at z=0.003 (cup base top), top at z=0.033,
+           radius 34mm (slightly inside the cup wall inner face at ~36mm). -->
+      <geom name="cup_water" type="cylinder" size="0.034 0.015" pos="0 0 0.018"
+            material="water_mat" friction="0.6 0.5 0.05"/>
+    </body>
+
+    <!-- Cup pedestal: variable-height cylinder under the cup, used to simulate
+         a stack of N cups in real rage cage (each adds ~1.8cm height). The
+         body has no joint; env.py mutates body_pos and geom_size at reset to
+         track the sampled pedestal_height, and the cup_world weld lifts the
+         cup body to z=pedestal_height. Min half-height is clamped to 0.0001m
+         to avoid degenerate-cylinder geometry when pedestal_height=0. -->
+    <body name="cup_pedestal" pos="0.85 0 0.0001">
+      <geom name="cup_pedestal_geom" type="cylinder" size="0.040 0.0001"
+            rgba="0.4 0.4 0.4 0.7" friction="0.5 0.01 0.001"/>
+    </body>
+
+    <!-- Ping-pong ball: free-jointed, spawned above open table space for now
+         (gripper attach comes later) -->
+    <body name="ball" pos="0.25 0 0.30">
+      <freejoint name="ball_free"/>
+      <geom name="ball_geom" type="sphere" size="0.020" mass="0.0027" material="ball_mat"
+            friction="0.3 0.05 0.0001"
+            solref="-10000 -30" solimp="0.9 0.95 0.001"/>
+    </body>
+  </worldbody>
+
+  <equality>
+    <!-- ball_grip: pins the ball at the gripper centerline in link6 frame. Relpose z=0.09003
+         was computed empirically (sim/smoke_test.py --print-link6-pose); the rotation of
+         link7/link8 means the centerline is *not* at link6-z=0.13503 minus pad-thickness.
+         cup_world: locks the cup at its nominal pose so it doesn't slide when struck.
+         Compliant solref pairs with the stiff ball contact (solref="-10000 -30") without
+         exploding the implicitfast integrator. piper.xml already declares a joint8↔joint7
+         equality; the compiler merges it with ours. -->
+    <weld name="ball_grip" body1="link6" body2="ball"
+          relpose="0 0 0.09003 1 0 0 0" active="true"
+          solref="0.005 1" solimp="0.95 0.99 0.001"/>
+    <weld name="cup_world" body1="world" body2="cup"
+          relpose="0.85 0 0 1 0 0 0" active="true"
+          solref="0.005 1" solimp="0.95 0.99 0.001"/>
+  </equality>
+
+  <!-- Cup walls + base sit *exactly* at z=0 (table top). With the matched
+       stiff contact dynamics this generates 35 active wall↔table contacts on
+       episode start, fighting the cup_world weld and destabilizing the
+       solver. The cup's resting-on-table state is set by the weld; we don't
+       need contact dynamics between them. -->
+  <contact>
+    <exclude body1="world" body2="cup"/>
+    <!-- Pedestal top touches cup base (cup welded at z=pedestal_height, cup
+         base disk extends 3mm above body origin). Skip those contact pairs
+         so the welds drive cup rest, not contact dynamics. Pedestal-table
+         contact at z=0 is similarly redundant with the body's static pose. -->
+    <exclude body1="cup" body2="cup_pedestal"/>
+  </contact>
+
+  <keyframe>
+    <!-- Full-scene init. qpos layout: arm joints 1-6 (idx 0:6), gripper joint7/joint8 (idx 6:8),
+         cup free joint xyz+wxyz (idx 8:15), ball free joint xyz+wxyz (idx 15:22).
+         Gripper opened to ~22mm so the welded ball has ~4.5mm clearance from each pad.
+         Ball xyz = world position of the gripper centerline at home, computed via
+         `uv run python sim/smoke_test.py --print-link6-pose`. -->
+    <key name="rage_home"
+         qpos="0 1.57 -1.3485 0 0 0 0.022 -0.022  0.85 0 0  1 0 0 0  0.45934 0.00141 0.37060  1 0 0 0"
+         ctrl="0 1.57 -1.3485 0 0 0 0.022"/>
+  </keyframe>
+</mujoco>

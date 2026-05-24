@@ -1,0 +1,15 @@
+[project]
+name = "rage-cage-arm"
+version = "0.1.0"
+description = "AgileX PiPER 6-DOF arm playing rage cage in MuJoCo sim with a VLA controller."
+requires-python = ">=3.11"
+dependencies = [
+    "gymnasium>=1.2.3",
+    "mujoco>=3.8.1",
+    "numpy>=2.4.5",
+    "pillow>=12.2.0",
+    "scipy>=1.17.1",
+    "stable-baselines3>=2.8.0",
+    "tensorboard>=2.20.0",
+    "trimesh>=4.12.2",
+]
