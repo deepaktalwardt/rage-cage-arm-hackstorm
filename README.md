@@ -51,9 +51,12 @@ target_marker_id:=-1
 reference_marker_id:=-1
 process_every_n:=3
 publish_annotated:=true
+pose_smoothing_alpha:=1.0
 ```
 
 `axis_length_m:=0.0` uses half of `marker_length_m` for the drawn axes.
+`pose_smoothing_alpha:=1.0` disables smoothing. Lower values smooth `/aruco/pose`
+more strongly but add lag; try `0.2` for a stable debug view.
 
 Set `reference_marker_id:=4` to publish `/aruco/pose` relative to marker `id4`
 instead of the camera frame. For example, to publish marker `id3` in marker

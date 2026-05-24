@@ -50,6 +50,7 @@ class ArucoDetectorNode(Node):
         self.declare_parameter("axis_length_m", 0.0)
         self.declare_parameter("process_every_n", 3)
         self.declare_parameter("publish_annotated", True)
+        self.declare_parameter("pose_smoothing_alpha", 1.0)
 
         self.image_topic = self.get_parameter("image_topic").value
         detections_topic = self.get_parameter("detections_topic").value
@@ -63,6 +64,7 @@ class ArucoDetectorNode(Node):
         self.axis_length_m = float(self.get_parameter("axis_length_m").value)
         self.process_every_n = max(1, int(self.get_parameter("process_every_n").value))
         self.publish_annotated = bool(self.get_parameter("publish_annotated").value)
+        self.pose_smoothing_alpha = float(np.clip(float(self.get_parameter("pose_smoothing_alpha").value), 0.0, 1.0))
 
         if dictionary_name not in ARUCO_DICTS:
             raise ValueError(f"unknown ArUco dictionary {dictionary_name}; choices: {sorted(ARUCO_DICTS)}")
@@ -88,6 +90,8 @@ class ArucoDetectorNode(Node):
         self.frame_count = 0
         self.camera_matrix: np.ndarray | None = None
         self.dist_coeffs: np.ndarray | None = None
+        self.smoothed_pose: PoseStamped | None = None
+        self.smoothed_pose_key: tuple[int, int] | None = None
 
         self.get_logger().info(
             f"subscribing to {self.image_topic}; publishing detections on {self.detections_pub.topic_name}"
@@ -117,7 +121,7 @@ class ArucoDetectorNode(Node):
             if target_pose is not None:
                 public_pose = self._public_pose(msg, target_pose, poses)
                 if public_pose is not None:
-                    self.pose_pub.publish(public_pose)
+                    self.pose_pub.publish(self._smoothed_public_pose(public_pose, target_pose.marker_id))
             if self.annotated_pub is not None:
                 self.annotated_pub.publish(
                     annotated_image_msg(
@@ -190,6 +194,33 @@ class ArucoDetectorNode(Node):
         stamped.header.stamp = msg.header.stamp
         stamped.header.frame_id = f"aruco_id{self.reference_marker_id}"
         return stamped
+
+    def _smoothed_public_pose(self, pose: PoseStamped, target_marker_id: int) -> PoseStamped:
+        if self.pose_smoothing_alpha >= 1.0:
+            self.smoothed_pose = copy_pose_stamped(pose)
+            self.smoothed_pose_key = (target_marker_id, self.reference_marker_id)
+            return pose
+
+        pose_key = (target_marker_id, self.reference_marker_id)
+        if self.smoothed_pose is None or self.smoothed_pose_key != pose_key:
+            self.smoothed_pose = copy_pose_stamped(pose)
+            self.smoothed_pose_key = pose_key
+            return pose
+
+        alpha = self.pose_smoothing_alpha
+        smoothed = copy_pose_stamped(pose)
+        previous_position = pose_position_array(self.smoothed_pose)
+        current_position = pose_position_array(pose)
+        previous_quaternion = pose_quaternion_array(self.smoothed_pose)
+        current_quaternion = pose_quaternion_array(pose)
+
+        filtered_position = (1.0 - alpha) * previous_position + alpha * current_position
+        filtered_quaternion = slerp_quaternion(previous_quaternion, current_quaternion, alpha)
+        set_pose_position(smoothed, filtered_position)
+        set_pose_orientation(smoothed, filtered_quaternion)
+
+        self.smoothed_pose = copy_pose_stamped(smoothed)
+        return smoothed
 
 
 def image_to_bgr(msg: Image) -> np.ndarray:
@@ -329,6 +360,46 @@ def pose_stamped_msg(source: Image, pose: PoseStamped) -> PoseStamped:
     return msg
 
 
+def copy_pose_stamped(source: PoseStamped) -> PoseStamped:
+    msg = PoseStamped()
+    msg.header = source.header
+    msg.pose.position.x = source.pose.position.x
+    msg.pose.position.y = source.pose.position.y
+    msg.pose.position.z = source.pose.position.z
+    msg.pose.orientation.x = source.pose.orientation.x
+    msg.pose.orientation.y = source.pose.orientation.y
+    msg.pose.orientation.z = source.pose.orientation.z
+    msg.pose.orientation.w = source.pose.orientation.w
+    return msg
+
+
+def pose_position_array(pose: PoseStamped) -> np.ndarray:
+    return np.array(
+        [pose.pose.position.x, pose.pose.position.y, pose.pose.position.z],
+        dtype=np.float64,
+    )
+
+
+def pose_quaternion_array(pose: PoseStamped) -> np.ndarray:
+    return np.array(
+        [pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w],
+        dtype=np.float64,
+    )
+
+
+def set_pose_position(pose: PoseStamped, position: np.ndarray) -> None:
+    pose.pose.position.x = float(position[0])
+    pose.pose.position.y = float(position[1])
+    pose.pose.position.z = float(position[2])
+
+
+def set_pose_orientation(pose: PoseStamped, quaternion: np.ndarray) -> None:
+    pose.pose.orientation.x = float(quaternion[0])
+    pose.pose.orientation.y = float(quaternion[1])
+    pose.pose.orientation.z = float(quaternion[2])
+    pose.pose.orientation.w = float(quaternion[3])
+
+
 def pose_stamped_payload(source: Image, pose: PoseStamped) -> dict[str, Any]:
     stamped = pose_stamped_msg(source, pose)
     return {
@@ -385,6 +456,36 @@ def quaternion_from_rotation(rotation: np.ndarray) -> tuple[float, float, float,
     if norm < 1e-12:
         return 0.0, 0.0, 0.0, 1.0
     return float(x / norm), float(y / norm), float(z / norm), float(w / norm)
+
+
+def slerp_quaternion(previous: np.ndarray, current: np.ndarray, alpha: float) -> np.ndarray:
+    previous = normalized_quaternion(previous)
+    current = normalized_quaternion(current)
+    dot = float(np.dot(previous, current))
+
+    if dot < 0.0:
+        current = -current
+        dot = -dot
+
+    if dot > 0.9995:
+        return normalized_quaternion(previous + alpha * (current - previous))
+
+    theta_0 = float(np.arccos(np.clip(dot, -1.0, 1.0)))
+    sin_theta_0 = float(np.sin(theta_0))
+    if sin_theta_0 < 1e-12:
+        return current
+
+    theta = theta_0 * alpha
+    scale_previous = float(np.sin(theta_0 - theta) / sin_theta_0)
+    scale_current = float(np.sin(theta) / sin_theta_0)
+    return normalized_quaternion(scale_previous * previous + scale_current * current)
+
+
+def normalized_quaternion(quaternion: np.ndarray) -> np.ndarray:
+    norm = float(np.linalg.norm(quaternion))
+    if norm < 1e-12:
+        return np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float64)
+    return quaternion / norm
 
 
 
