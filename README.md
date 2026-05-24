@@ -48,11 +48,34 @@ dictionary:=DICT_4X4_50
 marker_length_m:=0.04
 axis_length_m:=0.0
 target_marker_id:=-1
+reference_marker_id:=-1
 process_every_n:=3
 publish_annotated:=true
 ```
 
 `axis_length_m:=0.0` uses half of `marker_length_m` for the drawn axes.
+
+Set `reference_marker_id:=4` to publish `/aruco/pose` relative to marker `id4`
+instead of the camera frame. For example, to publish marker `id3` in marker
+`id4`'s frame:
+
+```bash
+python3 scripts/aruco_ros2_node.py --ros-args \
+  -p target_marker_id:=3 \
+  -p reference_marker_id:=4
+```
+
+Print the 3D distance between two detected marker centers:
+
+```bash
+python3 scripts/aruco_distance.py --origin-id 3 --target-id 4
+```
+
+The script prints `delta_m` in the camera optical frame and
+`delta_in_id3_frame_m` in the origin marker frame. For two markers on the same
+flat surface, the origin-frame Z value should be close to zero.
+
+Add `--once` to exit after the first frame where both marker poses are visible.
 
 Or use `uv`:
 
