@@ -1,0 +1,13 @@
+/**:
+  ros__parameters:
+    port: 8765
+    address: 0.0.0.0
+    # Send message-definition schemas to clients. When disabled, Foxglove Studio's
+    # URDF layer (and any panel that does schema-based topic filtering) marks
+    # std_msgs/String topics like /robot_description as invalid.
+    disable_load_message: false
+    # Allow uppercase mesh extensions (.STL etc.) — the piper meshes are *.STL.
+    # Regex syntax is ECMAScript (std::regex). Single-quoted YAML strings keep
+    # backslashes literal.
+    asset_uri_allowlist:
+      - '^package://(?:[-\w%]+/)*[-\w%.]+\.(?:dae|fbx|glb|gltf|jpeg|jpg|mtl|obj|png|stl|STL|tif|tiff|urdf|webp|xacro)$'

@@ -1,0 +1,25 @@
+args:
+  joints:
+  - 4
+  poses: /ws/sysid/joint_isolation_poses.yaml
+  tau_max: 3.0
+  ramp_duration_s: 8.0
+  pulse_ms: 200.0
+  damping_s: 1.0
+  vel_breakaway: 0.02
+  kd_min: 0.1
+  hold_kp: 20.0
+  hold_kd: 1.5
+  qdot_max: 1.0
+  q_excursion_max: 0.3
+  output_dir: /ws/sysid/runs
+  plot: true
+  auto: true
+  simulate: true
+fits:
+  4:
+    tau_static_pos: .nan
+    tau_static_neg: .nan
+    I_eff: .nan
+    b_eff: .nan
+    alpha_torque_scale: .nan

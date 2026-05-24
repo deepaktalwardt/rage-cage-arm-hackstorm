@@ -1,0 +1,142 @@
+services:
+  piper_ros:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: piper:jazzy
+    container_name: piper_ros
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    runtime: nvidia
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID}
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
+    volumes:
+      - ./ws:/ws
+    command: sleep infinity
+
+  foxglove:
+    image: piper:jazzy
+    container_name: foxglove
+    network_mode: host
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID}
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+    # The workspace overlay is mounted + sourced so the bridge's asset server
+    # can resolve package://piper_description/meshes/... via ament_index.
+    volumes:
+      - ./ws:/ws
+    depends_on:
+      - piper_ros
+    # Params (port, address, asset_uri_allowlist with uppercase .STL support)
+    # live in ws/foxglove_bridge_params.yaml — inline overrides via -p don't
+    # work for array params or read-only params like asset_uri_allowlist.
+    # List-form command keeps the whole bash script as a single argv entry;
+    # YAML `>` folded scalars get split into multiple args by docker, which
+    # breaks `bash -lc` arg parsing.
+    command:
+      - bash
+      - -lc
+      - "source /opt/ros/jazzy/setup.bash && source /ws/install/setup.bash && ros2 run foxglove_bridge foxglove_bridge --ros-args --params-file /ws/foxglove_bridge_params.yaml"
+
+  realsense_d435i:
+    image: piper:jazzy
+    container_name: realsense_d435i
+    network_mode: host
+    privileged: true
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID}
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+    volumes:
+      - /dev:/dev
+    depends_on:
+      - piper_ros
+    # Run realsense2_camera_node directly (instead of rs_launch.py) so we can
+    # remap color/camera_info -> color/camera_info_raw. The factory CameraInfo
+    # is then republished with the calibrated intrinsics from
+    # ws/d435i_intrinsic_v1.yaml by the camera_info_publisher service below,
+    # using the original /camera/d435i/color/camera_info topic name.
+    # List-form command — folded scalars get split by docker and break bash arg parsing.
+    command:
+      - bash
+      - -lc
+      - "source /opt/ros/jazzy/setup.bash && ros2 run realsense2_camera realsense2_camera_node --ros-args -r __ns:=/camera -r __node:=d435i -p camera_name:=d435i -p camera_namespace:=camera -p enable_gyro:=true -p enable_accel:=true -p unite_imu_method:=2 -p align_depth.enable:=true -p pointcloud.enable:=true -r /camera/d435i/color/camera_info:=/camera/d435i/color/camera_info_raw"
+
+  camera_info_publisher:
+    image: piper:jazzy
+    container_name: camera_info_publisher
+    network_mode: host
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID}
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+    volumes:
+      - ./ws:/ws
+    depends_on:
+      - piper_ros
+      - realsense_d435i
+    command:
+      - bash
+      - -lc
+      - "source /opt/ros/jazzy/setup.bash && source /ws/install/setup.bash && ros2 run piper camera_info_publisher --ros-args -p calibration_file:=/ws/d435i_intrinsic_v1.yaml -r camera_info_raw:=/camera/d435i/color/camera_info_raw -r camera_info:=/camera/d435i/color/camera_info"
+
+  # Mock arm — disabled while running against real hardware. Re-enable by
+  # uncommenting and commenting out agx_arm_driver; do NOT run both (same node name).
+  # piper_mock:
+  #   image: piper:jazzy
+  #   container_name: piper_mock
+  #   network_mode: host
+  #   environment:
+  #     ROS_DOMAIN_ID: ${ROS_DOMAIN_ID}
+  #     RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+  #   volumes:
+  #     - ./ws:/ws
+  #   depends_on:
+  #     - piper_ros
+  #   # Kinematic stub of the piper arm: mirrors the real driver's ROS surface
+  #   # (joint_ctrl_single, pos_cmd, enable_srv, joint_states_feedback, end_pose, arm_status)
+  #   # backed by URDF-clamped, velocity-ramped joints + analytic FK. No CAN, no hardware.
+  #   command: >
+  #     bash -lc "source /opt/ros/jazzy/setup.bash && source /ws/install/setup.bash &&
+  #               ros2 launch piper start_mock_piper.launch.py"
+
+  agx_arm_driver:
+    image: piper:jazzy
+    container_name: agx_arm_driver
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID}
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+    volumes:
+      - ./ws:/ws
+    depends_on:
+      - piper_ros
+    # AgileX agx_arm_ros driver (pyAgxArm SDK) over SocketCAN. The arm's built-in
+    # USB-CAN adapter enumerates as can2 once the gs_usb kernel module is loaded
+    # on the host (built out-of-tree in /home/orin/piper/gs_usb_build; can0/can1
+    # are the Jetson's onboard mttcan and unrelated). `ip link set` is idempotent.
+    command: >
+      bash -lc "ip link set can2 up type can bitrate 1000000 2>/dev/null || true &&
+                source /opt/ros/jazzy/setup.bash && source /ws/install/setup.bash &&
+                ros2 launch agx_arm_ctrl start_single_agx_arm.launch.py can_port:=can2 arm_type:=piper effector_type:=agx_gripper speed_percent:=100"
+
+  # perception_node:
+  #   image: piper:jazzy
+  #   container_name: perception_node
+  #   network_mode: host
+  #   environment:
+  #     ROS_DOMAIN_ID: ${ROS_DOMAIN_ID}
+  #     RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+  #     PYTHONPATH: /home/orin/hackathon/xinyi
+  #   volumes:
+  #     - ./ws:/ws
+  #     - /home/orin/hackathon/xinyi:/home/orin/hackathon/xinyi:ro
+  #   depends_on:
+  #     - piper_ros
+  #     - realsense_d435i
+  #   command: >
+  #     bash -lc "source /opt/ros/jazzy/setup.bash && source /ws/install/setup.bash && ros2 run piper perception_node --ros-args -p image_topic:=/camera/d435i/color/image_raw"

@@ -1,0 +1,37 @@
+args:
+  joints:
+  - 2
+  poses: /ws/sysid/joint_isolation_poses.yaml
+  tau_max: 2.0
+  ramp_duration_s: 8.0
+  pulse_ms: 200.0
+  pulse_ramp_ms: 80.0
+  damping_s: 1.0
+  vel_breakaway: 0.05
+  breakaway_consec: 3
+  kd_min: 0.1
+  hold_kp: 20.0
+  hold_kd: 1.5
+  reposition_vel: 0.7
+  reposition_kp: 15.0
+  reposition_kd: 1.0
+  qdot_max: 0.5
+  q_excursion_max: 0.2
+  output_dir: /ws/sysid/runs
+  plot: true
+  auto: false
+  simulate: false
+fits:
+  2:
+    tau_static_pos: 0.5925871125000413
+    tau_static_neg: -0.9784551102502519
+    tau_gravity_baseline: -0.165375
+    I_eff: 1.338222778466662
+    qdd_at_step: 0.365580053633285
+    b_eff: 0.5147596329178511
+    b_eff_phase_c: 0.5147596329178511
+    b_eff_decay_fit: .nan
+    tau_static_decay_fit: .nan
+    decay_fit_n_samples: 35
+    qdot_terminal: 0.38016000000000005
+    alpha_torque_scale: 1.0

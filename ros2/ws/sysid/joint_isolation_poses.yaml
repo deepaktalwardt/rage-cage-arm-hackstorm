@@ -1,0 +1,53 @@
+# Per-joint "isolation poses" for the torque-ramp sysid script.
+#
+# Each entry defines the joint angles (rad) that the arm holds while joint J
+# is being characterized. The goal: pick poses where joint J's axis sees as
+# little gravity-induced static torque as possible, so the open-loop torque->
+# acceleration fit isn't dominated by an unknown gravity offset.
+#
+# Joint numbering is 1-based and matches /control/move_j topic ordering:
+# [joint1, joint2, joint3, joint4, joint5, joint6].
+
+# ----------------------------------------------------------------------------
+# Pose A — vertical stack (covers J1, J2, J3 with near-zero gravity torque)
+# ----------------------------------------------------------------------------
+# Captured live from /feedback/joint_states with the arm physically posed
+# upright in teach mode. Holding effort in this pose was J2=0.10, J3=0.04 N·m
+# — within sensor noise of zero, vs ~9.7 N·m at the bad pose.
+#
+# NOTE: J3 here is -2.920 rad which is only 0.047 rad away from the J3 lower
+# limit (-2.967). Phase A ramps that drive J3 further negative will hit the
+# joint limit before any sysid signal is captured. For J3 specifically, you
+# can either:
+#   - move J3 to a safer interior angle (e.g. -2.5 rad) before testing it,
+#     accepting some gravity offset
+#   - or only ramp J3 in the positive direction (one-sided friction)
+joint1:
+  hold: [0.0, 1.475, -2.920, -0.091, -0.027, 0.0]
+  notes: "Pose A: arm vertical. J1 axis vertical -> zero gravity torque."
+
+joint2:
+  hold: [0.0, 1.475, -2.920, -0.091, -0.027, 0.0]
+  notes: "Pose A: arm vertical. CoM beyond J2 stacked vertically -> 0.10 N.m hold."
+
+joint3:
+  hold: [0.0, 1.475, -2.920, -0.091, -0.027, 0.0]
+  notes: "Pose A: truly vertical. Only 0.047 rad to J3 lower limit -2.967 — MUST run with --q-excursion-max 0.04 or lower to avoid hitting the limit."
+
+# ----------------------------------------------------------------------------
+# Pose B — captured live (covers J4, J5, J6 with near-zero gravity)
+# ----------------------------------------------------------------------------
+# Captured live from /feedback/joint_states with the arm teach-moded by hand
+# into the wrist-hangs-down configuration. Effort readings at hold:
+#   J4 = +0.025 N·m, J5 = -0.094 N·m, J6 = +0.026 N·m   (all near zero)
+joint4:
+  hold: [2.391, 2.471, -0.833, 0.0, -0.019, 0.0]
+  notes: "Pose B: gripper hanging. J4 axis horizontal, gripper symmetric -> ~0 gravity torque."
+
+joint5:
+  hold: [2.391, 2.471, -0.833, 0.0, -0.019, 0.0]
+  notes: "Pose B: gripper hanging. J5 axis horizontal, gripper CoM below J5 -> ~0 gravity torque."
+
+joint6:
+  hold: [2.391, 2.471, -0.833, 0.0, -0.019, 0.0]
+  notes: "Pose B: gripper hanging. J6 axis along gripper line, symmetric -> ~0 gravity torque."

@@ -1,0 +1,35 @@
+args:
+  joints:
+  - 1
+  amplitudes_deg:
+  - 5.0
+  - 10.0
+  gains:
+  - - 10.0
+    - 0.5
+  log_duration: 3.0
+  hold_kp: 20.0
+  hold_kd: 1.0
+  reposition_vel: 0.5
+  reposition_kp: 15.0
+  reposition_kd: 1.0
+  poses: /ws/sysid/joint_isolation_poses.yaml
+  qdot_max: 5.0
+  q_excursion_max: 0.5
+  output_dir: /ws/sysid/runs
+  plot: true
+  auto: false
+  simulate: false
+results:
+  joint1_amp5_kp10.0_kd0.5:
+    rise_time_s: 0.135005474
+    overshoot: 0.0
+    settling_time_s: 0.225030422
+    peak_velocity_rad_s: 1.522
+    steady_state_error_rad: -0.0033859387488689857
+  joint1_amp10_kp10.0_kd0.5:
+    rise_time_s: 0.110009671
+    overshoot: 0.0
+    settling_time_s: 0.170004606
+    peak_velocity_rad_s: 3.0100000000000002
+    steady_state_error_rad: -0.0019024088846738285
